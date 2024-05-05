@@ -28,41 +28,28 @@ class DiceMod(loader.Module):
             await message.delete()
             return
 
-        if await self.allmodules.check_security(message, security.OWNER | security.SUDO):
-            try:
-                emoji = args[0]
-            except IndexError:
-                emoji = "🎲"
-            possible = self.config["POSSIBLE_VALUES"].get(emoji, self.config["POSSIBLE_VALUES"]["🎲"])
+        emoji = args[0] if args else "🎲"
+        possible = self.config["POSSIBLE_VALUES"].get(emoji, [1, 2, 3, 4, 5, 6])
+        if not possible:
+            await message.reply("Invalid emoji for dice roll.")
+            return
 
-            condition = args[1] if len(args) > 1 else None
-            count = int(args[2]) if len(args) > 2 else 1
+        condition = args[1] if len(args) > 1 else None
+        count = int(args[2]) if len(args) > 2 else 1
 
-            rolled = -1
-            done = 0
-            chat = message.to_id
-            client = message.client
+        chat = message.to_id
+        client = message.client
+        await message.delete()  # Deleting the command message immediately
 
-            while done < count:
-                task = client.send_message(chat, file=InputMediaDice(emoji))
-                if message:
-                    message = (await asyncio.gather(message.delete(), task))[1]
-                else:
-                    message = await task
-                rolled = message.media.value
-                logger.debug("Rolled %d", rolled)
+        for _ in range(count):
+            message = await client.send_message(chat, file=InputMediaDice(emoji))
+            rolled = message.media.value
+            logger.debug("Rolled %d", rolled)
 
-                if condition in ["chet", "nechet"]:
-                    if (condition == "chet" and rolled % 2 == 0) or (condition == "nechet" and rolled % 2 != 0):
-                        done += 1
-                    else:
-                        await message.delete()
-                else:
-                    values = {int(x) for x in condition.split(",")} if condition else set()
-                    if rolled in values:
-                        done += 1
-                    else:
-                        await message.delete()
-        else:
-            emoji = args[0] if args else "🎲"
-            await message.reply(file=InputMediaDice(emoji))
+            if condition == "chet" and rolled % 2 == 0:
+                break
+            elif condition == "nechet" and rolled % 2 != 0:
+                break
+            elif condition and int(condition) == rolled:
+                break
+            await message.delete()  # Delete dice roll message if it doesn't meet the condition
