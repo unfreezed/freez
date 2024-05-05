@@ -28,20 +28,20 @@ class EvenDiceMod(loader.Module):
                 possible = self.config["POSSIBLE_VALUES"][emoji]
                 even_values = {value for value in possible if value % 2 == 0}
 
-                rolled = -1
                 chat = message.to_id
                 client = message.client
-                message = await message.reply("Rolling the dice until an even number is rolled...")
+                # Delete the command message first
+                await message.delete()
                 while True:
                     task = client.send_message(chat, file=InputMediaDice(emoji))
-                    if message:
-                        message = (await asyncio.gather(message.delete(), task))[1]
-                    else:
-                        message = await task
+                    message = await task
                     rolled = message.media.value
                     logger.debug("Rolled %d", rolled)
                     if rolled in even_values:
                         break
+                    else:
+                        # Delete the dice message if it's not an even number
+                        await message.delete()
             else:
                 await message.reply("You do not have permission to use this command.")
         else:
