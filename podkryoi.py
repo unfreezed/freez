@@ -7,15 +7,6 @@ from .. import loader, utils, security
 
 logger = logging.getLogger(__name__)
 
-import asyncio
-import logging
-
-from telethon.tl.types import InputMediaDice
-
-from .. import loader, utils, security
-
-logger = logging.getLogger(__name__)
-
 
 @loader.tds
 class DiceMod(loader.Module):
@@ -36,9 +27,19 @@ class DiceMod(loader.Module):
         args = utils.get_args(message)
         if await self.allmodules.check_security(message, security.OWNER | security.SUDO):
             emoji = args[0] if args else "🎲"
-            condition = args[1] if len(args) > 1 else ""
+            condition = args[1] if len(args) > 1 else None
             count = int(args[2]) if len(args) > 2 else 1
             possible = self.config["POSSIBLE_VALUES"].get(emoji, [1, 2, 3, 4, 5, 6])
+            values = set()
+
+            if condition not in ["chet", "nechet"]:
+                try:
+                    for val in condition.split(","):
+                        value = int(val)
+                        if value in possible:
+                            values.add(value)
+                except (ValueError, TypeError):
+                    values = possible
 
             done = 0
             chat = message.to_id
@@ -49,13 +50,19 @@ class DiceMod(loader.Module):
                 rolled = message.media.value
                 logger.debug("Rolled %d", rolled)
 
-                if (condition == "chet" and rolled % 2 == 0) or (condition == "nechet" and rolled % 2 != 0):
+                if condition == "chet" and rolled % 2 == 0:
+                    done += 1
+                elif condition == "nechet" and rolled % 2 != 0:
+                    done += 1
+                elif rolled in values:
                     done += 1
                 else:
                     await message.delete()
+
+                if done >= count:
+                    break
 
             await original_message.delete()
         else:
             emoji = args[0] if args else "🎲"
             await message.reply(file=InputMediaDice(emoji))
-
