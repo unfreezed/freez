@@ -1,18 +1,3 @@
-#    Friendly Telegram (telegram userbot)
-#    Copyright (C) 2018-2019 The Authors
-
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
-
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import asyncio
 import logging
@@ -62,23 +47,23 @@ class DiceMod(loader.Module):
                 count = int(args[2])
             except (ValueError, IndexError):
                 count = 1
+
             rolled = -1
-            done = 0
             chat = message.to_id
             client = message.client
-            while True:
+            deleted = False  # Отслеживание состояния удаления сообщения
+
+            # Ограничение количества попыток до 2 (один начальный бросок и один повторный)
+            for attempt in range(2):
                 task = client.send_message(chat, file=InputMediaDice(emoji))
-                if message:
-                    message = (await asyncio.gather(message.delete(), task))[1]
-                else:
-                    message = await task
+                message = await task
                 rolled = message.media.value
                 logger.debug("Rolled %d", rolled)
-                if rolled in values or not values:
-                    done += 1
-                    message = None
-                    if done == count:
-                        break
+                if rolled not in values and not deleted:
+                    await message.delete()
+                    deleted = True
+                elif rolled in values:
+                    break  # Выход из цикла, если бросок успешен
         else:
             try:
                 emoji = args[0]
