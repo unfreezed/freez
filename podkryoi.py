@@ -9,60 +9,40 @@ logger = logging.getLogger(__name__)
 
 
 @loader.tds
-class DiceMod(loader.Module):
-    """Dice"""
-    strings = {"name": "Dice"}
+class EvenDiceMod(loader.Module):
+    """Dice that rolls until an even number is rolled"""
+    strings = {"name": "EvenDice"}
 
     def __init__(self):
         self.config = loader.ModuleConfig("POSSIBLE_VALUES", {"": [1, 2, 3, 4, 5, 6],
-                                                              "🎲": [1, 2, 3, 4, 5, 6],
-                                                              "🎯": [1, 2, 3, 4, 5, 6],
-                                                              "🏀": [1, 2, 3, 4, 5]},
-                                          "Mapping of emoji to possible values")
+                                                              "🎲": [1, 2, 3, 4, 5, 6]},
+                                          "Mapping of emoji to possible dice values")
 
     @loader.unrestricted
     async def dicecmd(self, message):
-        """Rolls a die (optionally with the specified value)
-           .dice <emoji> <condition> <count>"""
+        """Rolls a die until an even value is obtained. Use `.dice chet`."""
         args = utils.get_args(message)
-        if await self.allmodules.check_security(message, security.OWNER | security.SUDO):
-            emoji = args[0] if args else "🎲"
-            condition = args[1] if len(args) > 1 else None
-            count = int(args[2]) if len(args) > 2 else 1
-            possible = self.config["POSSIBLE_VALUES"].get(emoji, [1, 2, 3, 4, 5, 6])
-            values = set()
+        if args and args[0].lower() == "chet":
+            if await self.allmodules.check_security(message, security.OWNER | security.SUDO):
+                emoji = "🎲"
+                possible = self.config["POSSIBLE_VALUES"][emoji]
+                even_values = {value for value in possible if value % 2 == 0}
 
-            if condition not in ["chet", "nechet"]:
-                try:
-                    for val in condition.split(","):
-                        value = int(val)
-                        if value in possible:
-                            values.add(value)
-                except (ValueError, TypeError):
-                    values = possible
-
-            done = 0
-            chat = message.to_id
-            client = message.client
-            original_message = message
-            while done < count:
-                message = await client.send_message(chat, file=InputMediaDice(emoji))
-                rolled = message.media.value
-                logger.debug("Rolled %d", rolled)
-
-                if condition == "chet" and rolled % 2 == 0:
-                    done += 1
-                elif condition == "nechet" and rolled % 2 != 0:
-                    done += 1
-                elif rolled in values:
-                    done += 1
-                else:
-                    await message.delete()
-
-                if done >= count:
-                    break
-
-            await original_message.delete()
+                rolled = -1
+                chat = message.to_id
+                client = message.client
+                message = await message.reply("Rolling the dice until an even number is rolled...")
+                while True:
+                    task = client.send_message(chat, file=InputMediaDice(emoji))
+                    if message:
+                        message = (await asyncio.gather(message.delete(), task))[1]
+                    else:
+                        message = await task
+                    rolled = message.media.value
+                    logger.debug("Rolled %d", rolled)
+                    if rolled in even_values:
+                        break
+            else:
+                await message.reply("You do not have permission to use this command.")
         else:
-            emoji = args[0] if args else "🎲"
-            await message.reply(file=InputMediaDice(emoji))
+            await message.reply("Invalid command. Use `.dice chet` to roll the dice until an even number.")
