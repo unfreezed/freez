@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 
@@ -7,7 +6,6 @@ from telethon.tl.types import InputMediaDice
 from .. import loader, utils, security
 
 logger = logging.getLogger(__name__)
-
 
 @loader.tds
 class DiceMod(loader.Module):
@@ -24,49 +22,32 @@ class DiceMod(loader.Module):
     @loader.unrestricted
     async def dicecmd(self, message):
         """Rolls a die (optionally with the specified value)
-           .dice <emoji> <outcomes> <count>"""
+           .dice <emoji> <condition> <count>"""
         args = utils.get_args(message)
-        if await self.allmodules.check_security(message, security.OWNER | security.SUDO):
-            try:
-                emoji = args[0]
-            except IndexError:
-                emoji = "🎲"
-            possible = self.config["POSSIBLE_VALUES"].get(emoji, None)
-            if possible is None:
-                emoji = "🎲"
-                possible = self.config["POSSIBLE_VALUES"][emoji]
-            values = set()
-            try:
-                for val in args[1].split(","):
-                    value = int(val)
-                    if value in possible:
-                        values.add(value)
-            except (ValueError, IndexError):
-                values.clear()
-            try:
-                count = int(args[2])
-            except (ValueError, IndexError):
-                count = 1
+        if not args:
+            await message.delete()  # Удаляем сообщение с командой если аргументы не предоставлены
+            return
+        
+        condition = args[1] if len(args) > 1 else None
+        count = int(args[2]) if len(args) > 2 else 1
 
+        emoji = args[0] if args else "🎲"
+        possible = self.config["POSSIBLE_VALUES"].get(emoji, self.config["POSSIBLE_VALUES"]["🎲"])
+
+        client = message.client
+        chat = message.to_id
+
+        for _ in range(count):
             rolled = -1
-            chat = message.to_id
-            client = message.client
-            deleted = False  # Отслеживание состояния удаления сообщения
+            task = client.send_message(chat, file=InputMediaDice(emoji))
+            dice_message = await task
+            rolled = dice_message.media.value
+            logger.debug("Rolled %d", rolled)
 
-            # Ограничение количества попыток до 2 (один начальный бросок и один повторный)
-            for attempt in range(2):
-                task = client.send_message(chat, file=InputMediaDice(emoji))
-                message = await task
-                rolled = message.media.value
-                logger.debug("Rolled %d", rolled)
-                if rolled not in values and not deleted:
-                    await message.delete()
-                    deleted = True
-                elif rolled in values:
-                    break  # Выход из цикла, если бросок успешен
-        else:
-            try:
-                emoji = args[0]
-            except IndexError:
-                emoji = "🎲"
-            await message.reply(file=InputMediaDice(emoji))
+            if condition == "chet" and rolled % 2 == 0:
+                break
+            elif condition == "nechet" and rolled % 2 != 0:
+                break
+            await dice_message.delete()  # Удаляем сообщение с броском кубика, если условие не выполнено
+
+        await message.delete()  # Удаляем сообщение с командой .dice после выполнения
