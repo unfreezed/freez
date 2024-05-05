@@ -7,6 +7,16 @@ from .. import loader, utils, security
 
 logger = logging.getLogger(__name__)
 
+import asyncio
+import logging
+
+from telethon.tl.types import InputMediaDice
+
+from .. import loader, utils, security
+
+logger = logging.getLogger(__name__)
+
+
 @loader.tds
 class DiceMod(loader.Module):
     """Dice"""
@@ -25,46 +35,27 @@ class DiceMod(loader.Module):
            .dice <emoji> <condition> <count>"""
         args = utils.get_args(message)
         if await self.allmodules.check_security(message, security.OWNER | security.SUDO):
-            try:
-                emoji = args[0]
-            except IndexError:
-                emoji = "🎲"
-            possible = self.config["POSSIBLE_VALUES"].get(emoji, None)
-            if possible is None:
-                emoji = "🎲"
-                possible = self.config["POSSIBLE_VALUES"][emoji]
-
+            emoji = args[0] if args else "🎲"
             condition = args[1] if len(args) > 1 else ""
-            try:
-                count = int(args[2])
-            except (ValueError, IndexError):
-                count = 1
+            count = int(args[2]) if len(args) > 2 else 1
+            possible = self.config["POSSIBLE_VALUES"].get(emoji, [1, 2, 3, 4, 5, 6])
 
             done = 0
             chat = message.to_id
             client = message.client
-            while True:
-                task = client.send_message(chat, file=InputMediaDice(emoji))
-                if message:
-                    message = (await asyncio.gather(message.delete(), task))[1]
-                else:
-                    message = await task
+            original_message = message
+            while done < count:
+                message = await client.send_message(chat, file=InputMediaDice(emoji))
                 rolled = message.media.value
                 logger.debug("Rolled %d", rolled)
 
-                if condition == "1" and rolled % 2 != 0:  # Нечетное число
-                    done += 1
-                elif condition == "2" and rolled % 2 == 0:  # Четное число
+                if (condition == "chet" and rolled % 2 == 0) or (condition == "nechet" and rolled % 2 != 0):
                     done += 1
                 else:
-                    await message.delete()  # Удалить сообщение, если не выпало нужное число
+                    await message.delete()
 
-                if done == count:
-                    break
-
+            await original_message.delete()
         else:
-            try:
-                emoji = args[0]
-            except IndexError:
-                emoji = "🎲"
+            emoji = args[0] if args else "🎲"
             await message.reply(file=InputMediaDice(emoji))
+
