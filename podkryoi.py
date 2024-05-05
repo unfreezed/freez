@@ -32,6 +32,7 @@ class EvenDiceMod(loader.Module):
                 client = message.client
                 # Delete the command message first
                 await message.delete()
+                
                 while True:
                     task = client.send_message(chat, file=InputMediaDice(emoji))
                     message = await task
@@ -43,6 +44,14 @@ class EvenDiceMod(loader.Module):
                         # Delete the dice message if it's not an even number
                         await message.delete()
             else:
-                await message.reply("You do not have permission to use this command.")
+                # If the security check fails, reply that permission is needed (message not deleted here for context)
+                reply = await message.reply("You do not have permission to use this command.")
+                await asyncio.sleep(5)  # Give the user some time to read the message
+                await reply.delete()
+                await message.delete()
         else:
-            await message.reply("Invalid command. Use `.dice chet` to roll the dice until an even number.")
+            # If the command is invalid, notify the user and delete the notification after some time
+            reply = await message.reply("Invalid command. Use `.dice chet` to roll the dice until an even number.")
+            await asyncio.sleep(5)  # Give the user some time to read the message
+            await reply.delete()
+            await message.delete()
